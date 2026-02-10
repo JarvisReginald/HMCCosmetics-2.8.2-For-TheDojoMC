@@ -4,7 +4,7 @@
     </a>
 </p>
 
-<h4 align="center">Source code for HMCCosmetics, a premium Minecraft plugin.</h4>
+<h4 align="center">Fork of HMCCosmetics made for TheDojoMC.</h4>
 
 <p align="center">
     <a href="https://www.spigotmc.org/resources/100107/">
