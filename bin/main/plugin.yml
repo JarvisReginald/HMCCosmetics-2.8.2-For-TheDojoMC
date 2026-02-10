@@ -1,0 +1,93 @@
+name: HMCCosmetics
+version: 2.8.2
+main: com.hibiscusmc.hmccosmetics.HMCCosmeticsPlugin
+load: POSTWORLD
+authors:
+  - LoJoSho
+depend:
+  - HibiscusCommons
+commands:
+  cosmetic:
+    description: Base Cosmetic Command
+    aliases:
+      - hmccosmetics
+      - cosmetics
+permissions:
+  hmccosmetics.cmd.apply:
+    default: "true"
+  hmccosmetics.cmd.apply.other:
+    default: op
+  hmccosmetics.cmd.clearhiddenreasons:
+    default: op
+  hmccosmetics.cmd.dataclear:
+    default: op
+  hmccosmetics.cmd.debug:
+    default: op
+  hmccosmetics.cmd.default:
+    default: "true"
+  hmccosmetics.cmd.disableall:
+    default: op
+  hmccosmetics.cmd.dye:
+    default: "true"
+  hmccosmetics.cmd.emote:
+    default: "true"
+  hmccosmetics.cmd.emote.other:
+    default: op
+  hmccosmetics.cmd.hiddenreasons:
+    default: op
+  hmccosmetics.cmd.hide:
+    default: op
+  hmccosmetics.cmd.hide.other:
+    default: op
+  hmccosmetics.cmd.menu:
+    default: "true"
+  hmccosmetics.cmd.menu.other:
+    default: op
+  hmccosmetics.cmd.playemote:
+    default: op
+  hmccosmetics.cmd.playemote.other:
+    default: op
+  hmccosmetics.cmd.reload:
+    default: op
+  hmccosmetics.cmd.setwardrobesetting:
+    default: op
+  hmccosmetics.cmd.show:
+    default: op
+  hmccosmetics.cmd.show.other:
+    default: op
+  hmccosmetics.cmd.unapply:
+    default: "true"
+  hmccosmetics.cmd.unapply.other:
+    default: op
+  hmccosmetics.cmd.wardrobe:
+    default: "true"
+  hmccosmetics.cmd.wardrobe.other:
+    default: op
+  hmccosmetics.emote.shiftrun:
+    default: "true"
+  hmccosmetics.unapplydeath.bypass:
+    default: op
+api-version: "1.20"
+softdepend:
+  - Nexo
+  - BetterHud
+  - ModelEngine
+  - Oraxen
+  - ItemsAdder
+  - Geary
+  - HMCColor
+  - WorldGuard
+  - MythicMobs
+  - PlaceholderAPI
+  - SuperVanish
+  - PremiumVanish
+  - LibsDisguises
+  - Denizen
+  - MMOItems
+  - Eco
+  - ProtocolLib
+  - DojoEconomy
+  - PlayerParticles
+  - ItemsAdder
+loadbefore:
+  - Cosmin
