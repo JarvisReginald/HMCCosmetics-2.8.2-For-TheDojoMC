@@ -11,6 +11,7 @@ import com.hibiscusmc.hmccosmetics.gui.type.Type;
 import com.hibiscusmc.hmccosmetics.gui.type.Types;
 import com.hibiscusmc.hmccosmetics.gui.type.types.TypeCosmetic;
 import com.hibiscusmc.hmccosmetics.gui.type.types.TypePageSwitcher;
+import com.hibiscusmc.hmccosmetics.gui.type.types.TypePermissionReq;
 import com.hibiscusmc.hmccosmetics.user.CosmeticUser;
 import com.hibiscusmc.hmccosmetics.util.MessagesUtil;
 import dev.triumphteam.gui.builder.item.ItemBuilder;
@@ -98,8 +99,9 @@ public class Menu {
                     && "outfit_slot".equalsIgnoreCase(config.node("type").getString(""));
 
             boolean isPageSwitcher = type instanceof TypePageSwitcher;
+            boolean isPermissionReq = type instanceof TypePermissionReq;
 
-            if ((isOutfitSlot || isPageSwitcher) && config.node("item").virtual()) {
+            if ((isOutfitSlot || isPageSwitcher || isPermissionReq) && config.node("item").virtual()) {
                 item = new ItemStack(Material.AIR);
             } else {
                 try {
@@ -282,16 +284,24 @@ public class Menu {
     }
 
     private void updateMenu(Player viewer, CosmeticHolder cosmeticHolder, Gui gui) {
-        // Compute pagination
-        int totalPages = getTotalPages();
+        // Filter cosmetics to only those this viewer has permission for, so permitted
+        // cosmetics compact into the first available slots with no empty gaps.
+        List<MenuItem> viewerCosmetics = new ArrayList<>();
+        for (MenuItem mi : cosmeticItems) {
+            Cosmetic c = Cosmetics.getCosmetic(mi.itemConfig().node("cosmetic").getString(""));
+            if (c == null || cosmeticHolder.canEquipCosmetic(c)) viewerCosmetics.add(mi);
+        }
+
+        // Compute pagination from the viewer-specific list
+        int totalPages = freeSlots.isEmpty() ? 1 : Math.max(1, (int) Math.ceil((double) viewerCosmetics.size() / freeSlots.size()));
         int currentPage = viewerPages.getOrDefault(viewer.getUniqueId(), 0) % totalPages;
         int slotsPerPage = freeSlots.size();
 
         // Compute the slice of cosmetics for this page
         int startIndex = currentPage * slotsPerPage;
-        int endIndex = Math.min(startIndex + slotsPerPage, cosmeticItems.size());
-        List<MenuItem> pageSlice = (startIndex < cosmeticItems.size())
-                ? cosmeticItems.subList(startIndex, endIndex)
+        int endIndex = Math.min(startIndex + slotsPerPage, viewerCosmetics.size());
+        List<MenuItem> pageSlice = (startIndex < viewerCosmetics.size())
+                ? viewerCosmetics.subList(startIndex, endIndex)
                 : Collections.emptyList();
 
         // Build a map of slot -> cosmetic MenuItem for this page
@@ -325,10 +335,10 @@ public class Menu {
                 boolean occupied = false;
 
                 if (pageCosmeticMap.containsKey(i)) {
-                    // This free slot has a cosmetic on this page
+                    // This free slot has a cosmetic on this page (already permission-filtered)
                     MenuItem cosItem = pageCosmeticMap.get(i);
                     Cosmetic cosmetic = Cosmetics.getCosmetic(cosItem.itemConfig().node("cosmetic").getString(""));
-                    if (cosmetic != null && cosmeticHolder.canEquipCosmetic(cosmetic)) {
+                    if (cosmetic != null) {
                         if (cosmeticHolder.hasCosmeticInSlot(cosmetic)) {
                             title.append(Settings.getEquippedCosmeticColor());
                         } else {
@@ -360,13 +370,8 @@ public class Menu {
         } else {
             for (int i = 0; i < gui.getInventory().getSize(); i++) {
                 if (pageCosmeticMap.containsKey(i)) {
-                    MenuItem cosItem = pageCosmeticMap.get(i);
-                    Cosmetic cosmetic = Cosmetics.getCosmetic(cosItem.itemConfig().node("cosmetic").getString(""));
-                    if (cosmetic != null && cosmeticHolder.canEquipCosmetic(cosmetic)) {
-                        updateCosmeticSlot(viewer, cosmeticHolder, gui, i, cosItem);
-                    } else {
-                        gui.updateItem(i, ItemBuilder.from(new ItemStack(Material.AIR)).asGuiItem());
-                    }
+                    // All entries in pageCosmeticMap are already permission-filtered
+                    updateCosmeticSlot(viewer, cosmeticHolder, gui, i, pageCosmeticMap.get(i));
                 } else if (freeSlots.contains(i)) {
                     gui.updateItem(i, ItemBuilder.from(new ItemStack(Material.AIR)).asGuiItem());
                 } else if (items.containsKey(i)) {

@@ -57,12 +57,9 @@ public abstract class SQLData extends Data {
         Runnable run = () -> {
             try (PreparedStatement preparedSt = preparedStatement("REPLACE INTO COSMETICDATABASE(UUID,COSMETICS) VALUES(?,?);")) {
                 preparedSt.setString(1, user.getUniqueId().toString());
-                String serialized = serializeData(user);
-                preparedSt.setString(2, serialized);
+                preparedSt.setString(2, serializeData(user));
                 preparedSt.executeUpdate();
-                HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] Saved cosmetics for " + user.getUniqueId() + ": " + serialized);
             } catch (SQLException e) {
-                HMCCosmeticsPlugin.getInstance().getLogger().severe("[HMCCosmetics] Failed to save cosmetics for " + user.getUniqueId() + ": " + e.getMessage());
                 e.printStackTrace();
             }
         };

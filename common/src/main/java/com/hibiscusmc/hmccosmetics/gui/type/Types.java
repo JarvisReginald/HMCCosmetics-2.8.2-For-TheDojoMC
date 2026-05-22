@@ -5,6 +5,7 @@ import com.hibiscusmc.hmccosmetics.gui.type.types.TypeEmpty;
 import com.hibiscusmc.hmccosmetics.gui.type.types.TypeOutfitSlot;
 import com.hibiscusmc.hmccosmetics.gui.type.types.TypeOutfitSlotAdd;
 import com.hibiscusmc.hmccosmetics.gui.type.types.TypePageSwitcher;
+import com.hibiscusmc.hmccosmetics.gui.type.types.TypePermissionReq;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -18,6 +19,7 @@ public class Types {
     private static final TypeOutfitSlot TYPE_OUTFIT_SLOT = new TypeOutfitSlot();
     private static final TypeEmpty TYPE_EMPTY = new TypeEmpty();
     private static final TypePageSwitcher TYPE_PAGE_SWITCHER = new TypePageSwitcher();
+    private static final TypePermissionReq TYPE_PERMISSION_REQ = new TypePermissionReq();
 
     /**
      * Get's a Menu Item type. Add custom menu item types with {@link #addType(Type)}

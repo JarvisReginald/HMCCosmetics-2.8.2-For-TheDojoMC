@@ -6,6 +6,8 @@ import com.hibiscusmc.hmccosmetics.api.events.PlayerMenuCloseEvent;
 import com.hibiscusmc.hmccosmetics.config.Settings;
 import com.hibiscusmc.hmccosmetics.cosmetic.Cosmetic;
 import com.hibiscusmc.hmccosmetics.cosmetic.Cosmetics;
+import com.hibiscusmc.hmccosmetics.database.Database;
+import com.hibiscusmc.hmccosmetics.database.types.MySQLData;
 import com.hibiscusmc.hmccosmetics.cosmetic.rarity.Rarities;
 import com.hibiscusmc.hmccosmetics.cosmetic.rarity.Rarity;
 import com.hibiscusmc.hmccosmetics.cosmetic.types.CosmeticSkinType;
@@ -106,22 +108,95 @@ public class StoreMenu {
     private void setupDailyCosmetics() {
         randomDailyCosmetics.clear();
 
+        ZoneId zone = ZoneId.of("America/New_York");
+        LocalDate today = LocalDate.now(zone);
+        String dateKey = today.toString(); // "2026-02-27"
+
+        // If MySQL is available, try to load today's picks from the shared table first.
+        if (Database.getData() instanceof MySQLData mysql) {
+            List<String> stored = mysql.loadDailyPicks(dateKey);
+            if (stored != null) {
+                // Validate stored picks against current rules (e.g. 0% cosmetics removed after initial write).
+                List<String> valid = stored.stream()
+                        .filter(id -> {
+                            Cosmetic c = Cosmetics.getCosmetic(id);
+                            return c != null && c.getItem() != null && getRarityChanceWeight(c) > 0;
+                        })
+                        .toList();
+                if (valid.size() == stored.size()) {
+                    // All picks still valid — use as-is.
+                    applyPicksFromIds(valid);
+                    Bukkit.getLogger().info("[HMCC Store] Daily picks loaded from MySQL for " + dateKey + ": " + valid);
+                    return;
+                }
+                // Some picks are now invalid (e.g. rarity set to 0% after they were written).
+                // Overwrite MySQL with a fresh recompute so all servers get clean picks.
+                Bukkit.getLogger().warning("[HMCC Store] Stored picks for " + dateKey
+                        + " contain " + (stored.size() - valid.size())
+                        + " invalid cosmetic(s) — recomputing and overwriting MySQL.");
+                mysql.deleteDailyPicks(dateKey);
+            }
+        }
+
+        // Not in MySQL (or not using MySQL) — compute locally.
         List<Cosmetic> list = new ArrayList<>(Cosmetics.values());
         list.removeIf(Objects::isNull);
         list.removeIf(c -> c.getItem() == null);
+        list.removeIf(c -> getRarityChanceWeight(c) <= 0);
+        list.sort(Comparator.comparing(Cosmetic::getId));
 
-        long seed = LocalDate.now(ZoneId.of("Europe/Rome")).toEpochDay();
+        long seed = today.toEpochDay();
         Random rnd = new Random(seed);
-
         int amount = Math.min(7, list.size());
 
-        List<Cosmetic> picked = pickDailyWeighted(list, amount, rnd);
+        Bukkit.getLogger().info("[HMCC Store] setupDailyCosmetics()"
+                + " | server-time=" + java.time.ZonedDateTime.now()
+                + " | ny-date=" + today
+                + " | seed=" + seed
+                + " | pool-size=" + list.size()
+                + " | pool=" + list.stream().map(Cosmetic::getId).toList());
 
-        for (int i = 0; i < picked.size(); i++) {
-            randomDailyCosmetics.put(10 + i, picked.get(i));
+        List<Cosmetic> picked = pickDailyWeighted(list, amount, rnd);
+        List<String> pickedIds = picked.stream().map(Cosmetic::getId).toList();
+
+        Bukkit.getLogger().info("[HMCC Store] picked=" + pickedIds);
+
+        // Write to MySQL so other servers read the same picks.
+        // INSERT IGNORE means the first server to write wins; subsequent writes are silently skipped.
+        if (Database.getData() instanceof MySQLData mysql) {
+            mysql.saveDailyPicks(dateKey, pickedIds);
+            // Re-read the authoritative value in case another server wrote first.
+            List<String> authoritative = mysql.loadDailyPicks(dateKey);
+            if (authoritative != null && !authoritative.equals(pickedIds)) {
+                List<String> authValid = authoritative.stream()
+                        .filter(id -> {
+                            Cosmetic c = Cosmetics.getCosmetic(id);
+                            return c != null && c.getItem() != null && getRarityChanceWeight(c) > 0;
+                        })
+                        .toList();
+                Bukkit.getLogger().info("[HMCC Store] Another server already wrote picks for " + dateKey
+                        + ", using theirs: " + authValid);
+                applyPicksFromIds(authValid);
+                return;
+            }
         }
 
-        dbg("setupDailyCosmetics(): picked=" + picked.stream().map(Cosmetic::getId).toList());
+        applyPicksFromIds(pickedIds);
+        dbg("setupDailyCosmetics(): picked=" + pickedIds);
+    }
+
+    private void applyPicksFromIds(List<String> ids) {
+        int slot = 10;
+        for (String id : ids) {
+            if (slot > 16) break;
+            Cosmetic c = Cosmetics.getCosmetic(id);
+            if (c != null) {
+                randomDailyCosmetics.put(slot, c);
+                slot++;
+            } else {
+                Bukkit.getLogger().warning("[HMCC Store] Daily pick '" + id + "' not found on this server — skipping.");
+            }
+        }
     }
 
     private List<Cosmetic> pickDailyWeighted(List<Cosmetic> source, int k, Random rnd) {
@@ -600,7 +675,7 @@ public class StoreMenu {
 
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            List<String> lore = meta.getLore() == null ? new ArrayList<>() : meta.getLore();
+            List<String> lore = new ArrayList<>();
 
             // Add cosmetic type line at the top
             String cosmeticTypeName = getCosmeticTypeName(cos);

@@ -2,7 +2,6 @@ package com.hibiscusmc.hmccosmetics.user.manager;
 
 import com.hibiscusmc.hmccosmetics.util.packets.HMCCPacketManager;
 import lombok.Getter;
-import me.lojosho.hibiscuscommons.nms.NMSHandlers;
 import org.bukkit.Location;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -31,11 +30,7 @@ public class UserBalloonPufferfish extends UserEntity {
     }
 
     public void spawnPufferfish(Location location, List<Player> sendTo) {
-        NMSHandlers.getHandler().getPacketHandler().sendInvisibleEntity(pufferFishEntityId, EntityType.PUFFERFISH, location, uuid, sendTo);
-        /*
-        HMCCPacketManager.sendEntitySpawnPacket(location, pufferFishEntityId, EntityType.PUFFERFISH, uuid, sendTo);
-        HMCCPacketManager.sendInvisibilityPacket(pufferFishEntityId, sendTo);
-         */
+        HMCCPacketManager.spawnInvisibleEntity(pufferFishEntityId, EntityType.PUFFERFISH, location, uuid, sendTo);
     }
 
     public void destroyPufferfish() {

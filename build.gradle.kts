@@ -73,8 +73,6 @@ allprojects {
         // Hibiscus Commons
         maven("https://repo.hibiscusmc.com/releases")
 
-        // Player Particles
-        maven("https://repo.rosewooddev.io/repository/public/");
     }
 
     dependencies {
@@ -98,9 +96,8 @@ allprojects {
         compileOnly("io.github.toxicity188:BetterCommand:1.3") //BetterCommand library
         //compileOnly("it.unimi.dsi:fastutil:8.5.14")
         compileOnly("org.projectlombok:lombok:1.18.34")
-        compileOnly("me.lojosho:HibiscusCommons:0.8.1-d9fbae1d")
+        compileOnly("me.lojosho:HibiscusCommons:0.8.3-a89bcec3")
         compileOnly("net.dmulloy2:ProtocolLib:5.4.0")
-        compileOnly(files("${project.rootDir}/deps/PlayerParticles-8.12.jar"))
         compileOnly("dev.lone:api-itemsadder:4.0.10")
 
         // Handled by Spigot Library Loader ~ Deprecated as of Dec 16, 2025
@@ -171,7 +168,6 @@ tasks {
 
         dependencies {
             exclude(dependency("org.yaml:snakeyaml"))
-            exclude(dependency(files("${project.rootDir}/deps/PlayerParticles-8.12.jar")))
         }
 
         doLast {
@@ -195,7 +191,7 @@ bukkit {
     apiVersion = "1.20"
     authors = listOf("LoJoSho")
     depend = listOf("HibiscusCommons")
-    softDepend = listOf("Nexo", "BetterHud", "ModelEngine", "Oraxen", "ItemsAdder", "Geary", "HMCColor", "WorldGuard", "MythicMobs", "PlaceholderAPI", "SuperVanish", "PremiumVanish", "LibsDisguises", "Denizen", "MMOItems", "Eco", "ProtocolLib", "DojoEconomy", "PlayerParticles", "ItemsAdder")
+    softDepend = listOf("Nexo", "BetterHud", "ModelEngine", "Oraxen", "ItemsAdder", "Geary", "HMCColor", "WorldGuard", "MythicMobs", "PlaceholderAPI", "SuperVanish", "PremiumVanish", "LibsDisguises", "Denizen", "MMOItems", "Eco", "ProtocolLib", "DojoEconomy", "ItemsAdder")
     version = "${project.version}"
     loadBefore = listOf(
         "Cosmin" // Fixes an issue with Cosmin loading before and taking /cosmetic, when messing with what we do.

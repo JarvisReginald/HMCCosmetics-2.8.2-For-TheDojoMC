@@ -278,6 +278,8 @@ public class PlayerGameListener implements Listener {
 
         if (user.isInWardrobe()) user.leaveWardrobe(false);
 
+        user.despawnBackpack();
+
         if (Settings.isUnapplyOnDeath() && !event.getEntity().hasPermission("hmccosmetics.unapplydeath.bypass")) {
             user.removeCosmetics();
         }

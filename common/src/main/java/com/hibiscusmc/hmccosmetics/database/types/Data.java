@@ -47,7 +47,6 @@ public abstract class Data {
                 }
             }
         }
-        int cosmeticCount = 0;
         for (Cosmetic cosmetic : user.getCosmetics()) {
             Color color = user.getCosmeticColor(cosmetic.getSlot());
 
@@ -65,9 +64,7 @@ public abstract class Data {
 
             if (data.isEmpty()) data.append(input);
             else data.append(",").append(input);
-            cosmeticCount++;
         }
-        HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] serializeData for " + user.getUniqueId() + ": " + cosmeticCount + " cosmetics -> " + data.toString());
         return data.toString();
     }
 
@@ -85,7 +82,6 @@ public abstract class Data {
     @NotNull
     public final ParsedData deserializeAll(@NotNull String raw) {
         ParsedData out = new ParsedData();
-        HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] deserializeAll raw: \"" + raw + "\"");
 
         String[] rawData = raw.split(",");
         for (String a : rawData) {
@@ -121,10 +117,7 @@ public abstract class Data {
                 String key = left.substring("SKIN@".length());
                 if (key.isEmpty()) continue;
 
-                if (!Cosmetics.hasCosmetic(idPart)) {
-                    HMCCosmeticsPlugin.getInstance().getLogger().warning("[HMCCosmetics] deserializeAll: SKIN cosmetic not found: " + idPart);
-                    continue;
-                }
+                if (!Cosmetics.hasCosmetic(idPart)) continue;
                 Cosmetic cosmetic = Cosmetics.getCosmetic(idPart);
                 if (!(cosmetic instanceof CosmeticSkinType skin)) continue;
 
@@ -137,19 +130,14 @@ public abstract class Data {
             try {
                 slot = CosmeticSlot.valueOf(left);
             } catch (IllegalArgumentException ex) {
-                HMCCosmeticsPlugin.getInstance().getLogger().warning("[HMCCosmetics] deserializeAll: invalid slot: " + left);
                 continue;
             }
 
-            if (!Cosmetics.hasCosmetic(idPart)) {
-                HMCCosmeticsPlugin.getInstance().getLogger().warning("[HMCCosmetics] deserializeAll: cosmetic not found: " + idPart + " (slot=" + slot + ")");
-                continue;
-            }
+            if (!Cosmetics.hasCosmetic(idPart)) continue;
             Cosmetic cosmetic = Cosmetics.getCosmetic(idPart);
 
             out.cosmetics.put(slot, Map.entry(cosmetic, color));
         }
-        HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] deserializeAll result: " + out.cosmetics.size() + " cosmetics, " + out.skins.size() + " skins");
         return out;
     }
 

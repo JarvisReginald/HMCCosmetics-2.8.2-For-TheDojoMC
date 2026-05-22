@@ -167,8 +167,16 @@ public final class SkinProtocolLibListener {
         ItemMeta shownMeta = shown.getItemMeta();
 
         if (shownMeta != null) {
-            shownMeta.setDisplayName(materialPrettyName(realItem.getType()));
-            shownMeta.setLore(List.of());
+            if (rm.hasDisplayName()) {
+                shownMeta.setDisplayName(rm.getDisplayName());
+            } else {
+                shownMeta.setDisplayName(materialPrettyName(realItem.getType()));
+            }
+            if (rm.hasLore() && rm.getLore() != null) {
+                shownMeta.setLore(rm.getLore());
+            } else {
+                shownMeta.setLore(List.of());
+            }
 
             for (Enchantment enchant : rm.getEnchants().keySet()) {
                 shownMeta.addEnchant(enchant, rm.getEnchants().get(enchant), true);

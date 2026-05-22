@@ -33,7 +33,6 @@ import com.hibiscusmc.hmccosmetics.user.CosmeticUsers;
 import com.hibiscusmc.hmccosmetics.util.PlayerSearchManager;
 import com.hibiscusmc.hmccosmetics.util.MessagesUtil;
 import com.hibiscusmc.hmccosmetics.util.TranslationUtil;
-import dev.esophose.playerparticles.api.PlayerParticlesAPI;
 import lombok.Getter;
 import me.lojosho.hibiscuscommons.HibiscusCommonsPlugin;
 import me.lojosho.hibiscuscommons.HibiscusPlugin;
@@ -62,7 +61,6 @@ public final class HMCCosmeticsPlugin extends HibiscusPlugin {
     private static YamlConfigurationLoader configLoader;
     private OutfitsStorage outfitsStorage;
 
-    private PlayerParticlesAPI ppAPI;
     private SkinProtocolLibListener skinProtocolLibListener;
 
     @Getter
@@ -168,9 +166,6 @@ public final class HMCCosmeticsPlugin extends HibiscusPlugin {
             CosmeticCommand.refreshAllStoreArmorStands();
         });
 
-        if (Bukkit.getPluginManager().isPluginEnabled("PlayerParticles")) {
-            this.ppAPI = PlayerParticlesAPI.getInstance();
-        }
     }
 
     @Override
@@ -196,17 +191,12 @@ public final class HMCCosmeticsPlugin extends HibiscusPlugin {
         // During restart, PlayerQuitEvent fires and saves users synchronously, removing them from the map.
         // During normal stop, players may stay connected, so PlayerQuitEvent doesn't fire,
         // and we need to save them here as a fallback.
-        int remainingUsers = CosmeticUsers.values().size();
-        if (remainingUsers > 0) {
-            getLogger().info("[HMCCosmetics] Saving cosmetics for " + remainingUsers + " remaining users during shutdown...");
-            for (CosmeticUser user : CosmeticUsers.values()) {
-                if (user == null) continue;
-                if (user.isInWardrobe()) {
-                    user.leaveWardrobe(true);
-                }
-                Database.saveSync(user);
+        for (CosmeticUser user : CosmeticUsers.values()) {
+            if (user == null) continue;
+            if (user.isInWardrobe()) {
+                user.leaveWardrobe(true);
             }
-            getLogger().info("[HMCCosmetics] Finished saving cosmetics during shutdown");
+            Database.saveSync(user);
         }
 
         if (outfitsStorage != null) {
@@ -325,10 +315,6 @@ public final class HMCCosmeticsPlugin extends HibiscusPlugin {
 
     public OutfitsStorage getOutfitsStorage() {
         return outfitsStorage;
-    }
-
-    public PlayerParticlesAPI getPpAPI() {
-        return ppAPI;
     }
 
     public SkinProtocolLibListener getSkinProtocolLibListener() { return skinProtocolLibListener; }

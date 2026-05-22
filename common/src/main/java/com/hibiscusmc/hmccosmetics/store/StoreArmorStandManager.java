@@ -5,9 +5,11 @@ import com.hibiscusmc.hmccosmetics.config.Settings;
 import com.hibiscusmc.hmccosmetics.cosmetic.Cosmetic;
 import com.hibiscusmc.hmccosmetics.cosmetic.CosmeticSlot;
 import com.hibiscusmc.hmccosmetics.cosmetic.types.CosmeticBackpackType;
+import com.hibiscusmc.hmccosmetics.cosmetic.types.CosmeticParticleType;
 import com.hibiscusmc.hmccosmetics.cosmetic.types.CosmeticSkinType;
 import com.hibiscusmc.hmccosmetics.gui.Menus;
 import com.hibiscusmc.hmccosmetics.gui.special.StoreMenu;
+
 import org.bukkit.*;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
@@ -36,14 +38,16 @@ public final class StoreArmorStandManager {
             new NamespacedKey(HMCCosmeticsPlugin.getInstance(), "store_armorstand_slot"); // 10-16
 
     private static final Map<UUID, StoreBackpackDisplay> BACKPACK_DISPLAYS = new ConcurrentHashMap<>();
+    private static final Map<UUID, StoreParticleDisplay> PARTICLE_DISPLAYS = new ConcurrentHashMap<>();
     private static boolean backpackTickerStarted = false;
+    private static boolean particleTickerStarted = false;
 
     /**
      * Chiama questo in onEnable()
      */
     public static void initDailyRefreshScheduler() {
         ensureBackpackTicker();
-        ZoneId zone = ZoneId.of("Europe/Rome");
+        ZoneId zone = ZoneId.of("America/New_York");
 
         ZonedDateTime now = ZonedDateTime.now(zone);
         ZonedDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(zone);
@@ -122,6 +126,7 @@ public final class StoreArmorStandManager {
         if (cosmetic == null) return;
 
         removeBackpackDisplay(armorStand);
+        removeParticleDisplay(armorStand);
 
         if (armorStand.getEquipment() != null) {
             armorStand.getEquipment().clear();
@@ -131,6 +136,12 @@ public final class StoreArmorStandManager {
             StoreBackpackDisplay display = new StoreBackpackDisplay(armorStand, backpackType);
             BACKPACK_DISPLAYS.put(armorStand.getUniqueId(), display);
             display.spawn();
+            return;
+        }
+
+        if (cosmetic instanceof CosmeticParticleType particleType) {
+            StoreParticleDisplay display = new StoreParticleDisplay(armorStand, particleType);
+            PARTICLE_DISPLAYS.put(armorStand.getUniqueId(), display);
             return;
         }
 
@@ -229,15 +240,21 @@ public final class StoreArmorStandManager {
         }
     }
 
-    private static void ensureBackpackTicker() {
-        if (backpackTickerStarted) return;
-        backpackTickerStarted = true;
+    public static void removeParticleDisplay(ArmorStand armorStand) {
+        if (armorStand == null) return;
+        StoreParticleDisplay display = PARTICLE_DISPLAYS.remove(armorStand.getUniqueId());
+        if (display != null) {
+            display.despawn();
+        }
+    }
 
-        long period = Settings.getTickPeriod() > 0 ? Settings.getTickPeriod() : 20L; // fallback 1s
-        Bukkit.getScheduler().runTaskTimer(
-                HMCCosmeticsPlugin.getInstance(),
-                () -> {
-                    BACKPACK_DISPLAYS.entrySet().removeIf(entry -> {
+    private static void ensureBackpackTicker() {
+        if (!backpackTickerStarted) {
+            backpackTickerStarted = true;
+            long period = Settings.getTickPeriod() > 0 ? Settings.getTickPeriod() : 20L;
+            Bukkit.getScheduler().runTaskTimer(
+                    HMCCosmeticsPlugin.getInstance(),
+                    () -> BACKPACK_DISPLAYS.entrySet().removeIf(entry -> {
                         UUID standId = entry.getKey();
                         StoreBackpackDisplay display = entry.getValue();
                         Entity e = Bukkit.getEntity(standId);
@@ -247,11 +264,33 @@ public final class StoreArmorStandManager {
                         }
                         display.tick();
                         return false;
-                    });
-                },
-                1L,
-                period
-        );
+                    }),
+                    1L,
+                    period
+            );
+        }
+
+        if (!particleTickerStarted) {
+            particleTickerStarted = true;
+            // Particles always tick at a fixed 2-tick rate for smooth animation,
+            // independent of the general tick-period setting.
+            Bukkit.getScheduler().runTaskTimer(
+                    HMCCosmeticsPlugin.getInstance(),
+                    () -> PARTICLE_DISPLAYS.entrySet().removeIf(entry -> {
+                        UUID standId = entry.getKey();
+                        StoreParticleDisplay display = entry.getValue();
+                        Entity e = Bukkit.getEntity(standId);
+                        if (!(e instanceof ArmorStand as) || !as.isValid()) {
+                            display.despawn();
+                            return true;
+                        }
+                        display.tick();
+                        return false;
+                    }),
+                    1L,
+                    2L
+            );
+        }
     }
 
     public static @NotNull NamespacedKey getArmorstandStoreIdKey() {

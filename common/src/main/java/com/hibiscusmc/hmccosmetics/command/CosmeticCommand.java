@@ -463,12 +463,15 @@ public class CosmeticCommand implements CommandExecutor {
                 }
 
                 PersistentDataContainer pdc = armorStand.getPersistentDataContainer();
+
+                StoreArmorStandManager.removeBackpackDisplay(armorStand);
+                StoreArmorStandManager.removeParticleDisplay(armorStand);
+
                 pdc.remove(ARMORSTAND_STORE_ID_KEY);
                 pdc.remove(ARMORSTAND_STORE_SLOT_KEY);
 
                 armorStand.getEquipment().clear();
                 StoreArmorStandStorage.removeStandByLocation(armorStand);
-                StoreArmorStandManager.removeBackpackDisplay(armorStand);
 
                 if (!silent) p.sendMessage("Meta removed from ArmorStand.");
                 return true;

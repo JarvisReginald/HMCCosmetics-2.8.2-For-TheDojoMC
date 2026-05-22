@@ -22,12 +22,6 @@ import com.hibiscusmc.hmccosmetics.util.HMCCInventoryUtils;
 import com.hibiscusmc.hmccosmetics.util.MessagesUtil;
 import com.hibiscusmc.hmccosmetics.util.packets.HMCCPacketManager;
 import com.owen1212055.particlehelper.api.type.ParticleType;
-import dev.esophose.playerparticles.api.PlayerParticlesAPI;
-import dev.esophose.playerparticles.particles.ParticleEffect;
-import dev.esophose.playerparticles.particles.data.ColorTransition;
-import dev.esophose.playerparticles.particles.data.NoteColor;
-import dev.esophose.playerparticles.particles.data.OrdinaryColor;
-import dev.esophose.playerparticles.styles.ParticleStyle;
 import lombok.Getter;
 import me.lojosho.hibiscuscommons.hooks.Hooks;
 import me.lojosho.hibiscuscommons.nms.NMSHandlers;
@@ -53,6 +47,8 @@ public class CosmeticUser implements CosmeticHolder {
     @Getter
     private final UUID uniqueId;
     private int taskId = -1;
+    private int particleTaskId = -1;
+    private static final long PARTICLE_TICK_PERIOD = 2L;
     private final HashMap<CosmeticSlot, Cosmetic> playerCosmetics = new HashMap<>();
     private final Map<String, CosmeticSkinType> equippedSkins = new LinkedHashMap<>();
     private UserWardrobeManager userWardrobeManager;
@@ -94,22 +90,10 @@ public class CosmeticUser implements CosmeticHolder {
      * own state.
      */
     public CosmeticUser initialize(final @Nullable UserData userData) {
-        // Clear any particles that PlayerParticles might remember from before restart
-        // to prevent duplicates when we re-apply cosmetics
-        despawnParticle();
-        
         if(userData != null) {
-            HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] initialize for " + uniqueId + ": " + userData.getCosmetics().size() + " cosmetics, " + userData.getSkins().size() + " skins");
-            // Load regular cosmetics: CosmeticSlot -> Entry<Cosmetic, Integer>
-            // Skip permission checks here — DB data is trusted. Permission plugins
-            // (e.g. LuckPerms) may not have loaded yet at join time, which would
-            // cause cosmetics with a 'permission' node to be wrongly skipped and
-            // then permanently lost on the next save.
             for(final Map.Entry<CosmeticSlot, Map.Entry<Cosmetic, Integer>> entry : userData.getCosmetics().entrySet()) {
                 Cosmetic cosmetic = entry.getValue().getKey();
                 int colorRGBInt = entry.getValue().getValue();
-
-                HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] initialize: loading cosmetic slot=" + entry.getKey() + " id=" + cosmetic.getId());
 
                 Color color = null;
                 if (colorRGBInt != -1) color = Color.fromRGB(colorRGBInt);
@@ -122,8 +106,6 @@ public class CosmeticUser implements CosmeticHolder {
                 CosmeticSkinType skin = entry.getValue().getKey();
                 int colorRGBInt = entry.getValue().getValue();
 
-                HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] initialize: loading skin key=" + entry.getKey() + " id=" + skin.getId());
-
                 Color color = null;
                 if (colorRGBInt != -1) color = Color.fromRGB(colorRGBInt);
 
@@ -131,9 +113,6 @@ public class CosmeticUser implements CosmeticHolder {
             }
 
             this.applyHiddenState(userData.getHiddenReasons());
-            HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] initialize complete: " + playerCosmetics.size() + " cosmetics in map");
-        } else {
-            HMCCosmeticsPlugin.getInstance().getLogger().info("[HMCCosmetics] initialize for " + uniqueId + ": userData is NULL");
         }
 
         return this;
@@ -207,11 +186,22 @@ public class CosmeticUser implements CosmeticHolder {
         int tickPeriod = Settings.getTickPeriod();
         if(tickPeriod <= 0) {
             MessagesUtil.sendDebugMessages("CosmeticUser tick is disabled.");
-            return;
+        } else {
+            final BukkitTask task = Bukkit.getScheduler().runTaskTimer(HMCCosmeticsPlugin.getInstance(), this::tick, 0, tickPeriod);
+            this.taskId = task.getTaskId();
         }
 
-        final BukkitTask task = Bukkit.getScheduler().runTaskTimer(HMCCosmeticsPlugin.getInstance(), this::tick, 0, tickPeriod);
-        this.taskId = task.getTaskId();
+        // Particles always run on their own fixed-rate ticker regardless of tick-period.
+        final BukkitTask particleTask = Bukkit.getScheduler().runTaskTimer(
+                HMCCosmeticsPlugin.getInstance(), this::tickParticles, 0, PARTICLE_TICK_PERIOD);
+        this.particleTaskId = particleTask.getTaskId();
+    }
+
+    /** Dedicated ticker that only updates particle cosmetics at a fixed rate. */
+    private void tickParticles() {
+        if (isInWardrobe()) return;
+        if (isHidden()) return;
+        updateCosmetic(CosmeticSlot.PARTICLE);
     }
 
     /**
@@ -240,8 +230,11 @@ public class CosmeticUser implements CosmeticHolder {
     }
 
     public void destroy() {
-        if(this.taskId != -1) { // ensure we're actually ticking this user.
+        if(this.taskId != -1) {
             Bukkit.getScheduler().cancelTask(taskId);
+        }
+        if(this.particleTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(particleTaskId);
         }
 
         despawnBackpack();
@@ -343,40 +336,10 @@ public class CosmeticUser implements CosmeticHolder {
                 CosmeticBalloonType balloonType = (CosmeticBalloonType) cosmetic;
                 spawnBalloon(balloonType);
             }
-            if (cosmetic.getSlot() == CosmeticSlot.PARTICLE && isInWardrobe()) {
-                return;
-            }
-            if (cosmetic.getSlot() == CosmeticSlot.PARTICLE) {
-                try {
-                    spawnParticle((CosmeticParticleType) cosmetic);
-                } catch (Throwable ignored) {
-                    // PP API may not be ready yet (e.g. during initialization);
-                    // the cosmetic is already stored in playerCosmetics above,
-                    // the delayed updateCosmetic / respawnParticle will retry.
-                }
-            }
         }
         // API
         PlayerCosmeticPostEquipEvent postEquipEvent = new PlayerCosmeticPostEquipEvent(this, cosmetic);
         Bukkit.getPluginManager().callEvent(postEquipEvent);
-    }
-
-    public static @NotNull ColorTransition getColorTransition(String data) {
-        String[] split = data.split(" ");
-        int r = Integer.parseInt(split[0]);
-        int g = Integer.parseInt(split[1]);
-        int b = Integer.parseInt(split[2]);
-
-        OrdinaryColor startColor = new OrdinaryColor(r, g, b);
-
-        r = Integer.parseInt(split[3]);
-        g = Integer.parseInt(split[4]);
-        b = Integer.parseInt(split[5]);
-
-        OrdinaryColor endColor = new OrdinaryColor(r, g, b);
-
-        ColorTransition colorTransition = new ColorTransition(startColor, endColor);
-        return colorTransition;
     }
 
     /**
@@ -431,7 +394,6 @@ public class CosmeticUser implements CosmeticHolder {
 
         if (slot == CosmeticSlot.BACKPACK) despawnBackpack();
         if (slot == CosmeticSlot.BALLOON) despawnBalloon();
-        if (slot == CosmeticSlot.PARTICLE) despawnParticle();
 
         colors.remove(slot);
         playerCosmetics.remove(slot);
@@ -535,7 +497,9 @@ public class CosmeticUser implements CosmeticHolder {
             }
 
             if(cosmetic instanceof CosmeticParticleType) {
-                if (isInWardrobe()) return;
+                // Particles have their own dedicated ticker (tickParticles) and wardrobe
+                // update loop; skip here to avoid double-dispatching.
+                continue;
             }
 
             // defers item updates to end of operation
@@ -807,98 +771,6 @@ public class CosmeticUser implements CosmeticHolder {
         } else {
             HMCCPacketManager.equipmentSlotUpdate(getEntity().getEntityId(), this, slot, HMCCPacketManager.getViewers(getEntity().getLocation()));
         }
-    }
-
-    public void despawnParticle() {
-        PlayerParticlesAPI playerParticlesAPI = HMCCosmeticsPlugin.getInstance().getPpAPI();
-        if (playerParticlesAPI == null) return;
-        playerParticlesAPI.resetActivePlayerParticles(uniqueId);
-    }
-
-    /**
-     * Re-applies the current particle cosmetic's PlayerParticles active effect.
-     * Clears any stale PP particles first, then adds the current cosmetic's effect.
-     */
-    public void respawnParticle() {
-        if (!hasCosmeticInSlot(CosmeticSlot.PARTICLE)) return;
-        Cosmetic cosmetic = getCosmetic(CosmeticSlot.PARTICLE);
-        if (!(cosmetic instanceof CosmeticParticleType particleType)) return;
-
-        despawnParticle();
-        spawnParticle(particleType);
-    }
-
-    /**
-     * Adds the given particle cosmetic's effect to PlayerParticles as an active player particle.
-     */
-    private void spawnParticle(CosmeticParticleType particleType) {
-        PlayerParticlesAPI ppApi = HMCCosmeticsPlugin.getInstance().getPpAPI();
-        if (ppApi == null) return;
-
-        String effect = particleType.getParticleType();
-        String style = particleType.getParticleStyle();
-        String data = particleType.getParticleData();
-
-        ParticleEffect particleEffect = ParticleEffect.fromName(effect);
-        ParticleStyle particleStyle = ParticleStyle.fromName(style);
-
-        if (particleEffect == null || particleStyle == null) return;
-
-        // ColorTransition
-        if (data.split(" ").length == 6) {
-            ColorTransition colorTransition = getColorTransition(data);
-            ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, colorTransition);
-            return;
-        }
-
-        if (data.equalsIgnoreCase("rainbow")) {
-            if (particleEffect == ParticleEffect.NOTE) {
-                ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, NoteColor.RAINBOW);
-            } else {
-                ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, OrdinaryColor.RAINBOW);
-            }
-            return;
-        }
-
-        if (data.equalsIgnoreCase("random")) {
-            if (particleEffect == ParticleEffect.NOTE) {
-                ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, NoteColor.RANDOM);
-            } else {
-                ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, OrdinaryColor.RANDOM);
-            }
-            return;
-        }
-
-        if (data.split(" ").length == 3) {
-            String[] split = data.split(" ");
-            try {
-                int r = Integer.parseInt(split[0]);
-                int g = Integer.parseInt(split[1]);
-                int b = Integer.parseInt(split[2]);
-                ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, new OrdinaryColor(r, g, b));
-            } catch (NumberFormatException ex) {
-                System.out.println("Invalid RGB data for particle " + particleType.getId() + ": " + data);
-            }
-            return;
-        }
-
-        if (data.matches("\\d+")) {
-            int n = Integer.parseInt(data);
-            if (particleEffect == ParticleEffect.NOTE) {
-                if (n >= 0 && n <= 24) {
-                    ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, new NoteColor(n));
-                }
-            }
-            return;
-        }
-
-        Material mat = Material.getMaterial(data);
-        if (mat != null) {
-            ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle, mat);
-            return;
-        }
-
-        ppApi.addActivePlayerParticle(uniqueId, particleEffect, particleStyle);
     }
 
     /**

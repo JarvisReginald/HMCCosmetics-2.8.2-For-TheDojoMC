@@ -247,7 +247,7 @@ public class HMCPlaceholderExpansion extends PlaceholderExpansion {
             case "wardrobe-enabled":
                 return TranslationUtil.getTranslation("in-wardrobe", String.valueOf(user.isInWardrobe()));
             case "reset-countdown":
-                ZoneId zone = ZoneId.of("Europe/Rome");
+                ZoneId zone = ZoneId.of("America/New_York");
                 ZonedDateTime now = ZonedDateTime.now(zone);
                 ZonedDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(zone);
                 Duration duration = Duration.between(now, nextMidnight);

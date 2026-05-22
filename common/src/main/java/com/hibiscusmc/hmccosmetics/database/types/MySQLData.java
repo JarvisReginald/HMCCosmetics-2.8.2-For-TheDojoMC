@@ -10,7 +10,11 @@ import org.jetbrains.annotations.Nullable;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -42,6 +46,12 @@ public class MySQLData extends SQLData {
             try (PreparedStatement preparedStatement =  connection.prepareStatement("CREATE TABLE IF NOT EXISTS `COSMETICDATABASE` " +
                     "(UUID varchar(36) PRIMARY KEY, " +
                     "COSMETICS MEDIUMTEXT " +
+                    ");")) {
+                preparedStatement.execute();
+            }
+            try (PreparedStatement preparedStatement = connection.prepareStatement("CREATE TABLE IF NOT EXISTS `STORE_DAILY_PICKS` " +
+                    "(`DATE` VARCHAR(10) PRIMARY KEY, " +
+                    "`PICKS` TEXT NOT NULL" +
                     ");")) {
                 preparedStatement.execute();
             }
@@ -110,9 +120,63 @@ public class MySQLData extends SQLData {
 
     private boolean isConnectionOpen() {
         try {
-            return connection != null && !connection.isClosed();
+            return connection != null && !connection.isClosed() && connection.isValid(2);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            return false;
+        }
+    }
+
+    /**
+     * Returns the stored cosmetic IDs for the given date, or null if not yet written.
+     * Safe to call on any thread.
+     */
+    @Nullable
+    public List<String> loadDailyPicks(String date) {
+        try (PreparedStatement ps = preparedStatement("SELECT `PICKS` FROM `STORE_DAILY_PICKS` WHERE `DATE` = ?;")) {
+            if (ps == null) return null;
+            ps.setString(1, date);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String raw = rs.getString("PICKS");
+                    if (raw == null || raw.isBlank()) return Collections.emptyList();
+                    return Arrays.asList(raw.split(",", -1));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * Deletes the daily picks row for the given date, allowing a fresh recompute.
+     * Used when stored picks contain cosmetics that are no longer eligible.
+     */
+    public void deleteDailyPicks(String date) {
+        try (PreparedStatement ps = preparedStatement(
+                "DELETE FROM `STORE_DAILY_PICKS` WHERE `DATE` = ?;")) {
+            if (ps == null) return;
+            ps.setString(1, date);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Writes daily picks for the given date using INSERT IGNORE so the first server
+     * to write wins and subsequent servers' writes are safely discarded.
+     */
+    public void saveDailyPicks(String date, List<String> pickedIds) {
+        String picks = String.join(",", pickedIds);
+        try (PreparedStatement ps = preparedStatement(
+                "INSERT IGNORE INTO `STORE_DAILY_PICKS` (`DATE`, `PICKS`) VALUES (?, ?);")) {
+            if (ps == null) return;
+            ps.setString(1, date);
+            ps.setString(2, picks);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
