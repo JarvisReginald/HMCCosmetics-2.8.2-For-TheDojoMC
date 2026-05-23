@@ -56,6 +56,7 @@ public final class SkinProtocolLibListener {
         Player viewer = event.getPlayer();
         CosmeticUser viewerUser = CosmeticUsers.getUser(viewer);
         if (viewerUser == null) return;
+        if (!hasEquippedSkins(viewerUser)) return;
 
         PacketContainer packet = event.getPacket();
 
@@ -73,6 +74,7 @@ public final class SkinProtocolLibListener {
         Player viewer = event.getPlayer();
         CosmeticUser viewerUser = CosmeticUsers.getUser(viewer);
         if (viewerUser == null) return;
+        if (!hasEquippedSkins(viewerUser)) return;
 
         PacketContainer packet = event.getPacket();
         List<ItemStack> items = packet.getItemListModifier().read(0);
@@ -114,6 +116,7 @@ public final class SkinProtocolLibListener {
 
         CosmeticUser targetUser = CosmeticUsers.getUser(target);
         if (targetUser == null) return;
+        if (!hasEquippedSkins(targetUser)) return;
 
         List<Pair<EnumWrappers.ItemSlot, ItemStack>> pairs = packet.getSlotStackPairLists().read(0);
         if (pairs == null || pairs.isEmpty()) return;
@@ -204,6 +207,7 @@ public final class SkinProtocolLibListener {
     public void resendHands(Player target) {
         CosmeticUser user = CosmeticUsers.getUser(target);
         if (user == null) return;
+        if (!hasEquippedSkins(user)) return;
 
         ItemStack main = target.getInventory().getItemInMainHand();
         ItemStack off = target.getInventory().getItemInOffHand();
@@ -253,6 +257,7 @@ public final class SkinProtocolLibListener {
 
     private ItemStack replaceIfMatchesAnySkin(CosmeticUser user, ItemStack realItem) {
         if (realItem == null || realItem.getType().isAir()) return realItem;
+        if (!hasEquippedSkins(user)) return realItem;
 
         for (CosmeticSkinType skinType : user.getEquippedSkins().values()) {
             String group = skinType.getRetextureGroup();
@@ -269,6 +274,10 @@ public final class SkinProtocolLibListener {
         return realItem;
     }
 
+    private boolean hasEquippedSkins(CosmeticUser user) {
+        return user != null && !user.getEquippedSkins().isEmpty();
+    }
+
     private boolean isSafeCursorMode(Player p) {
         switch (p.getGameMode()) {
             case SURVIVAL:
@@ -283,22 +292,15 @@ public final class SkinProtocolLibListener {
         Player viewer = event.getPlayer();
         CosmeticUser viewerUser = CosmeticUsers.getUser(viewer);
         if (viewerUser == null) return;
-
-        PacketContainer packet = event.getPacket();
-        int entityId = packet.getIntegers().read(0);
-
-        org.bukkit.entity.Entity ent = null;
-        for (org.bukkit.entity.Entity e : viewer.getWorld().getEntities()) {
-            if (e.getEntityId() == entityId) { ent = e; break; }
-        }
-        if (!(ent instanceof org.bukkit.entity.Item)) return;
+        if (!hasEquippedSkins(viewerUser)) return;
 
         List<WrappedWatchableObject> list;
         try {
-            list = packet.getWatchableCollectionModifier().read(0);
+            list = event.getPacket().getWatchableCollectionModifier().read(0);
         } catch (Throwable t) {
             return;
         }
+        if (list == null || list.isEmpty()) return;
 
         boolean changed = false;
         List<WrappedWatchableObject> out = new ArrayList<>(list.size());
@@ -317,7 +319,7 @@ public final class SkinProtocolLibListener {
         }
 
         if (changed) {
-            try { packet.getWatchableCollectionModifier().write(0, out); }
+            try { event.getPacket().getWatchableCollectionModifier().write(0, out); }
             catch (Throwable ignored) {}
         }
     }

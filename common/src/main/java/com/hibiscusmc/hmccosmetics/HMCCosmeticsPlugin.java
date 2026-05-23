@@ -151,9 +151,6 @@ public final class HMCCosmeticsPlugin extends HibiscusPlugin {
             }
         }
 
-        Bukkit.getPluginManager().registerEvents(new StoreArmorStandChunkListener(), this);
-        Bukkit.getPluginManager().registerEvents(new StoreArmorStandListener(), this);
-        Bukkit.getPluginManager().registerEvents(new StoreArmorStandListener(), this);
         StoreArmorStandManager.initDailyRefreshScheduler();
         StoreArmorStandManager.initPersistentArmorStandSupport();
 
