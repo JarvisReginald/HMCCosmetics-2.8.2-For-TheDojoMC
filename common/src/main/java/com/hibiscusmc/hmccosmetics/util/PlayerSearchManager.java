@@ -1,6 +1,7 @@
 package com.hibiscusmc.hmccosmetics.util;
 
 import com.hibiscusmc.hmccosmetics.HMCCosmeticsPlugin;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -14,10 +15,18 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PlayerSearchManager implements Listener {
     private final Map<UUID, Octree<Player>> worldOctrees = new HashMap<>();
     private final Map<UUID, Octree.Point3D> playerPositions = new HashMap<>();
+    /**
+     * Players whose join grace period is still active.
+     * During this window, move/teleport events do NOT update their octree
+     * position — preventing the backpack ticker from detecting them as new
+     * viewers before the vanilla entity tracker has sent nearby entities.
+     */
+    private final Set<UUID> joiningPlayers = ConcurrentHashMap.newKeySet();
 
     //private static final double WORLD_HALF_SIZE = 30_000_000; // Previous built in value
     private final double WORLD_HALF_SIZE;
@@ -85,21 +94,43 @@ public class PlayerSearchManager implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
+        if (joiningPlayers.contains(event.getPlayer().getUniqueId())) return;
         if (event.hasChangedBlock()) updatePlayerPosition(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onPlayerTeleport(PlayerTeleportEvent event) {
+        // Ignore teleports during the join grace period — Paper fires a
+        // PlayerTeleportEvent on join when placing the player at spawn,
+        // which would bypass our delayed insertion.
+        if (joiningPlayers.contains(event.getPlayer().getUniqueId())) return;
         updatePlayerPosition(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPlayerQuit(PlayerQuitEvent event) {
+        joiningPlayers.remove(event.getPlayer().getUniqueId());
         removePlayer(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPlayerJoin(PlayerJoinEvent event) {
-        addPlayer(event.getPlayer());
+        Player player = event.getPlayer();
+        // Mark as joining so move/teleport events don't insert them early.
+        joiningPlayers.add(player.getUniqueId());
+
+        // Delay adding to the spatial index until the vanilla entity tracker
+        // has had time to send nearby entity spawn packets (armor stands, etc.)
+        // to the client. This prevents the backpack ticker from sending mount
+        // packets before the client knows about the owner entity.
+        Bukkit.getScheduler().runTaskLater(
+                HMCCosmeticsPlugin.getInstance(),
+                () -> {
+                    if (!player.isOnline()) return;
+                    joiningPlayers.remove(player.getUniqueId());
+                    addPlayer(player);
+                },
+                40L  // 2 seconds — covers initial chunk + entity-tracker flush
+        );
     }
 }

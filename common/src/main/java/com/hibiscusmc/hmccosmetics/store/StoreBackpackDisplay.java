@@ -51,27 +51,38 @@ public final class StoreBackpackDisplay {
         entityManager.setRotation((int) base.getYaw(), false);
 
         List<Player> newViewers = entityManager.refreshViewers(base);
+        List<Player> allViewers = entityManager.getViewers();
 
-        if (forceSpawn || !newViewers.isEmpty()) {
-            List<Player> spawnTargets = forceSpawn ? entityManager.getViewers() : newViewers;
+        if (forceSpawn) {
+            sendSpawnBundle(base, allViewers);
 
-            List<PacketWrapper> bundle = new ArrayList<>(HMCCPacketManager.getInvisibleArmorStand(backpackEntityId, base, UUID.randomUUID()));
-
-            ItemStack displayItem = backpack.getItem();
-            if (displayItem != null) {
-                bundle.add(NMSHandlers.getHandler().getPacketBuilder()
-                        .buildEntityEquipmentSlotUpdatePacket(backpackEntityId, Map.of(EquipmentSlot.HEAD, displayItem)));
+            if (Settings.isBackpackForceRidingEnabled()) {
+                HMCCPacketManager.sendRidingPacket(ownerStand.getEntityId(), backpackEntityId, allViewers);
             }
+        } else if (!newViewers.isEmpty()) {
+            sendSpawnBundle(base, newViewers);
+
+            if (Settings.isBackpackForceRidingEnabled()) {
+                HMCCPacketManager.sendRidingPacket(ownerStand.getEntityId(), backpackEntityId, newViewers);
+            }
+        }
+    }
+
+    private void sendSpawnBundle(Location base, List<Player> spawnTargets) {
+        List<PacketWrapper> bundle = new ArrayList<>(
+                HMCCPacketManager.getInvisibleArmorStand(backpackEntityId, base, UUID.randomUUID())
+        );
+
+        ItemStack displayItem = backpack.getItem();
+        if (displayItem != null) {
             bundle.add(NMSHandlers.getHandler().getPacketBuilder()
-                    .buildEntityMountPacket(ownerStand.getEntityId(), new int[]{backpackEntityId}));
-
-            NMSHandlers.getHandler().getPacketSender().sendBundle(bundle, spawnTargets);
+                    .buildEntityEquipmentSlotUpdatePacket(backpackEntityId, Map.of(EquipmentSlot.HEAD, displayItem)));
         }
 
-        // opzionale: se vuoi forzare riding sempre come su player
-        if (Settings.isBackpackForceRidingEnabled()) {
-            HMCCPacketManager.sendRidingPacket(ownerStand.getEntityId(), backpackEntityId, entityManager.getViewers());
-        }
+        bundle.add(NMSHandlers.getHandler().getPacketBuilder()
+                .buildEntityMountPacket(ownerStand.getEntityId(), new int[]{backpackEntityId}));
+
+        NMSHandlers.getHandler().getPacketSender().sendBundle(bundle, spawnTargets);
     }
 
     public void despawn() {
